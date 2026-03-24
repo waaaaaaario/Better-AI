@@ -52,19 +52,48 @@ const BetterAI = () => {
       .trim();
   };
 
-  const applyLLMLingua = async (text) => {
-    // In a "Free" setup, we simulate the linguistic pruning 
-    // by targeting common low-value semantic clusters.
-    // In production, this would call the Hugging Face Inference API.
+const applyLLMLingua = async (text) => {
+  try {
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/microsoft/phi-2",
+      {
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_HF_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        body: JSON.stringify({
+          inputs: `Compress the following prompt by removing redundant words while keeping all core instructions and facts: ${text}`,
+          parameters: { max_new_tokens: 200 }
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    // Check if the API returned a valid string
+    if (data && data[0] && data[0].generated_text) {
+      // Clean up the response (Phi-2 sometimes repeats the prompt)
+      return data[0].generated_text.replace(text, "").trim();
+    }
+    
+    // If the API response is unexpected, throw to trigger the catch/fallback
+    throw new Error("API response invalid");
+
+  } catch (error) {
+    console.warn("LLMLingua API failed, using local fallback engine.");
+    
+    // --- LOCAL FALLBACK ENGINE (Your original logic) ---
     const words = text.split(' ');
     const optimized = words.filter((word, i) => {
       if (word.length > 6) return true; // Keep complex words
       if (/[A-Z]/.test(word[0])) return true; // Keep Proper Nouns
       return i % 1.4 !== 0; // Prune based on basic semantic spacing
     }).join(' ');
-    
+
     return optimized;
-  };
+  }
+};
 
   const handleRunSequence = async () => {
     if (!input) return;
