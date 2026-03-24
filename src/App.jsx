@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Cpu, Zap, Database, Scissors, Box, Play, 
   TrendingDown, ShieldCheck, Sparkles, Copy, 
   RotateCcw, Terminal, Settings, LayoutDashboard,
-  BarChart3, DollarSign
+  BarChart3, DollarSign, Binary
 } from 'lucide-react';
 
-// 2026 Industry Pricing (USD per 1M tokens)
 const PRICING_MODELS = {
-  'gemini-pro': { name: 'Gemini 2.5 Pro', input: 15.00, icon: 'sparkles' },
-  'gpt-4o': { name: 'GPT-4o', input: 5.00, icon: 'zap' },
-  'claude-sonnet': { name: 'Claude 3.5 Sonnet', input: 3.00, icon: 'box' },
-  'gemini-flash': { name: 'Gemini 2.5 Flash', input: 0.15, icon: 'cpu' }
+  'gemini-pro': { name: 'Gemini 2.5 Pro', input: 15.00 },
+  'gpt-4o': { name: 'GPT-4o', input: 5.00 },
+  'claude-sonnet': { name: 'Claude 3.5 Sonnet', input: 3.00 },
+  'gemini-flash': { name: 'Gemini 2.5 Flash', input: 0.15 }
 };
 
 const BetterAI = () => {
@@ -26,11 +25,10 @@ const BetterAI = () => {
     compressionRatio: 0
   });
 
-  // Agent definitions for the sidebar
   const [agents, setAgents] = useState([
-    { id: 1, name: 'Researcher', role: 'Context Mapping', status: 'idle', Icon: Database },
+    { id: 1, name: 'Researcher', role: 'Lexicon Mapping', status: 'idle', Icon: Binary },
     { id: 2, name: 'Analyst', role: 'LLMLingua Pruning', status: 'idle', Icon: Scissors },
-    { id: 4, name: 'TOON Engine', role: 'Structural Opt.', status: 'idle', Icon: Box },
+    { id: 4, name: 'TOON Engine', role: 'Shorthand & Structure', status: 'idle', Icon: Box },
     { id: 3, name: 'Synthesizer', role: 'Final Assembly', status: 'idle', Icon: Zap }
   ]);
 
@@ -41,59 +39,84 @@ const BetterAI = () => {
     ].slice(0, 8));
   };
 
-  // --- Real Compression Engines ---
+  const getEnvVar = (name) => {
+    try {
+      const meta = import.meta;
+      return meta.env[name] || "";
+    } catch (e) {
+      return "";
+    }
+  };
+
+  // --- Lexicon Mapping (Header Removed) ---
+  const applyLexiconMapping = (text) => {
+    const dictionary = {
+      "artificial intelligence": "AI",
+      "machine learning": "ML",
+      "San Francisco": "SF",
+      "user experience": "UX",
+      "sustainability": "s8y",
+      "infrastructure": "infra",
+      "documentation": "docs",
+      "internationalization": "i18n",
+      "optimization": "opti",
+      "implementation": "impl",
+      "tomorrow": "tmw",
+      "yesterday": "yest",
+      "information": "info",
+      "development": "dev",
+      "application": "app",
+      "management": "mgmt",
+      "business": "biz",
+      "technology": "tech",
+      "communication": "comm"
+    };
+
+    let encodedText = text;
+    // Sort keys by length descending to prevent partial matches
+    const sortedKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
+
+    sortedKeys.forEach(key => {
+      const regex = new RegExp(`\\b${key}\\b`, 'gi');
+      if (regex.test(encodedText)) {
+        encodedText = encodedText.replace(regex, dictionary[key]);
+      }
+    });
+
+    // We no longer return the "KEY: ..." header because the AI is assumed to know the mapping
+    return encodedText;
+  };
 
   const applyTOON = (text) => {
-    // Structural optimization: Strip bloat, flatten hierarchy
     return text
-      .replace(/(\r\n|\n|\r)/gm, " ") 
+      .replace(/Dear (AI|Assistant|Gemini|GPT),?/gi, "")
+      .replace(/I am writing to you (today )?because/gi, "")
+      .replace(/Could you please/gi, "")
+      .replace(/I would like to know/gi, "Q:")
+      .replace(/Thank you (very much|for your help).*$/gi, "")
+      .replace(/\bwith regards to\b/gi, "re:")
+      .replace(/\bfor example\b/gi, "eg:")
+      .replace(/\bthat is to say\b/gi, "ie:")
+      .replace(/\band\b/gi, "&")
       .replace(/\s+/g, " ")
-      .replace(/Please|Kindly|I would like you to|Could you/gi, "")
       .trim();
   };
 
-const applyLLMLingua = async (text) => {
-  try {
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/microsoft/phi-2",
-      {
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_HF_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify({
-          inputs: `Compress the following prompt by removing redundant words while keeping all core instructions and facts: ${text}`,
-          parameters: { max_new_tokens: 200 }
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    // Check if the API returned a valid string
-    if (data && data[0] && data[0].generated_text) {
-      // Clean up the response (Phi-2 sometimes repeats the prompt)
-      return data[0].generated_text.replace(text, "").trim();
+  const applyLLMLingua = async (text) => {
+    const HF_TOKEN = getEnvVar('VITE_HF_TOKEN');
+    if (HF_TOKEN) {
+      try {
+        const response = await fetch("https://api-inference.huggingface.co/models/microsoft/phi-2", {
+          headers: { Authorization: `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" },
+          method: "POST",
+          body: JSON.stringify({ inputs: `Compress this prompt for AI: ${text}` }),
+        });
+        const data = await response.json();
+        if (data?.[0]?.generated_text) return data[0].generated_text.trim();
+      } catch (e) { console.warn("API Offline"); }
     }
-    
-    // If the API response is unexpected, throw to trigger the catch/fallback
-    throw new Error("API response invalid");
-
-  } catch (error) {
-    console.warn("LLMLingua API failed, using local fallback engine.");
-    
-    // --- LOCAL FALLBACK ENGINE (Your original logic) ---
-    const words = text.split(' ');
-    const optimized = words.filter((word, i) => {
-      if (word.length > 6) return true; // Keep complex words
-      if (/[A-Z]/.test(word[0])) return true; // Keep Proper Nouns
-      return i % 1.4 !== 0; // Prune based on basic semantic spacing
-    }).join(' ');
-
-    return optimized;
-  }
-};
+    return text;
+  };
 
   const handleRunSequence = async () => {
     if (!input) return;
@@ -102,88 +125,76 @@ const applyLLMLingua = async (text) => {
     setOutput('');
 
     const initialTokens = Math.ceil(input.length / 4);
-    addLog(`Analyzing ${initialTokens} tokens for ${PRICING_MODELS[selectedModel].name}...`, "info");
+    addLog(`Input: ${initialTokens} tokens`, "info");
 
-    // 1. TOON Processing
+    setAgents(prev => prev.map(a => a.id === 1 ? { ...a, status: 'active' } : a));
+    addLog("Researcher: Mapping tokens...", "info");
+    const encoded = applyLexiconMapping(input);
+    await new Promise(r => setTimeout(r, 600));
+
     setAgents(prev => prev.map(a => a.id === 4 ? { ...a, status: 'active' } : a));
-    addLog("TOON Engine: Reducing structural overhead...", "info");
-    const toonResult = applyTOON(input);
+    addLog("TOON: Removing fluff...", "info");
+    const toonResult = applyTOON(encoded);
+    await new Promise(r => setTimeout(r, 600));
+
+    setAgents(prev => prev.map(a => a.id === 2 ? { ...a, status: 'active' } : a));
+    addLog("LLMLingua: Pruning...", "info");
+    const finalResult = await applyLLMLingua(toonResult);
     await new Promise(r => setTimeout(r, 800));
 
-    // 2. LLMLingua Processing
-    setAgents(prev => prev.map(a => a.id === 2 ? { ...a, status: 'active' } : a));
-    addLog("LLMLingua: Pruning semantic redundancy...", "info");
-    const finalResult = await applyLLMLingua(toonResult);
-    await new Promise(r => setTimeout(r, 1000));
-
-    // 3. Finalize Stats
     const finalTokens = Math.ceil(finalResult.length / 4);
-    const tokenDelta = initialTokens - finalTokens;
-    const savings = (tokenDelta / 1_000_000) * PRICING_MODELS[selectedModel].input;
-    const ratio = Math.round((1 - (finalTokens / initialTokens)) * 100);
+    const savings = (Math.max(0, initialTokens - finalTokens) / 1_000_000) * PRICING_MODELS[selectedModel].input;
+    const ratio = Math.round((1 - (finalResult.length / input.length)) * 100);
 
     setOutput(finalResult);
     setStats(prev => ({
       totalTokens: prev.totalTokens + initialTokens,
       savedDollars: prev.savedDollars + savings,
-      compressionRatio: ratio
+      compressionRatio: ratio > 0 ? ratio : 0
     }));
 
     setAgents(prev => prev.map(a => ({ ...a, status: 'idle' })));
-    addLog(`Success: ${ratio}% compression achieved. Saved $${savings.toFixed(4)}`, "success");
+    addLog(`Success: ${ratio > 0 ? ratio : 0}% reduction.`, "success");
     setIsProcessing(false);
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(output);
-    addLog("Optimized prompt copied to clipboard", "success");
   };
 
   return (
     <div className="min-h-screen bg-[#0f111a] text-slate-200 font-sans p-4 md:p-8">
-      {/* Header */}
       <nav className="max-w-6xl mx-auto flex justify-between items-center mb-8">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-600 rounded-lg">
-            <Cpu size={22} className="text-white" />
+          <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-900/40">
+            <Binary size={22} className="text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">Better AI</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Mission Control</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 text-[10px] font-bold text-emerald-500 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-            <ShieldCheck size={12} /> ENGINE ACTIVE
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Lexicon Encoding Protocol</p>
           </div>
         </div>
       </nav>
 
       <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-6">
           <section className="bg-[#1a1d2d] border border-slate-800 rounded-xl p-5 shadow-2xl">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Performance</h3>
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Savings Engine</h3>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="p-4 bg-[#0f111a] rounded-lg border border-slate-800/50">
-                <div className="text-[10px] text-blue-400 font-bold mb-1 uppercase">Saved (USD)</div>
-                <div className="text-2xl font-bold">${stats.savedDollars.toFixed(3)}</div>
+                <div className="text-[10px] text-blue-400 font-bold mb-1 uppercase">Saved</div>
+                <div className="text-2xl font-bold">${stats.savedDollars.toFixed(6)}</div>
               </div>
               <div className="p-4 bg-[#0f111a] rounded-lg border border-slate-800/50">
-                <div className="text-[10px] text-emerald-400 font-bold mb-1 uppercase">Ratio</div>
+                <div className="text-[10px] text-emerald-400 font-bold mb-1 uppercase">Reduction</div>
                 <div className="text-2xl font-bold">-{stats.compressionRatio}%</div>
               </div>
             </div>
-
             <div className="mt-4 pt-4 border-t border-slate-800">
-              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Target Price Logic</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Model Pricing</label>
               <select 
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full bg-[#0f111a] border border-slate-800 rounded-lg p-2.5 text-xs text-blue-400 font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+                className="w-full bg-[#0f111a] border border-slate-800 rounded-lg p-2.5 text-xs text-blue-400 font-bold outline-none cursor-pointer"
               >
-                {Object.keys(PRICING_MODELS).map(key => (
-                  <option key={key} value={key}>{PRICING_MODELS[key].name}</option>
+                {Object.keys(PRICING_MODELS).map(k => (
+                  <option key={k} value={k}>{PRICING_MODELS[k].name}</option>
                 ))}
               </select>
             </div>
@@ -203,87 +214,56 @@ const applyLLMLingua = async (text) => {
                       <div className="text-[10px] text-slate-500">{agent.role}</div>
                     </div>
                   </div>
-                  <div className={`h-1.5 w-1.5 rounded-full ${agent.status === 'active' ? 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]' : 'bg-slate-800'}`} />
                 </div>
               ))}
             </div>
           </section>
         </div>
 
-        {/* Main Console */}
         <div className="lg:col-span-8 space-y-6">
-          <section className="bg-[#1a1d2d] border border-slate-800 rounded-xl p-6 shadow-2xl relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Zap size={18} className="text-yellow-400 fill-yellow-400" />
-                <h3 className="text-sm font-bold text-white uppercase tracking-tight">Input Buffer</h3>
-              </div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Real-Time Compression Ready
-              </div>
-            </div>
-
+          <section className="bg-[#1a1d2d] border border-slate-800 rounded-xl p-6 shadow-2xl">
+            <h3 className="text-sm font-bold text-white uppercase tracking-tight flex items-center gap-2 mb-4">
+              <Terminal size={16} className="text-blue-500" /> Source Prompt
+            </h3>
             <textarea 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Paste your unoptimized prompt here to see the TOON & LLMLingua engines in action..."
-              className="w-full bg-[#0f111a] border border-slate-800 rounded-xl p-5 text-slate-100 placeholder:text-slate-700 outline-none min-h-[160px] focus:border-blue-500/50 transition-all text-sm leading-relaxed"
+              placeholder="Enter your prompt here..."
+              className="w-full bg-[#0f111a] border border-slate-800 rounded-xl p-5 text-slate-100 placeholder:text-slate-700 outline-none min-h-[160px] text-sm leading-relaxed mb-4 focus:border-blue-500 transition-all resize-none"
             />
-
-            <div className="mt-4 flex justify-end">
-              <button 
-                onClick={handleRunSequence}
-                disabled={isProcessing || !input}
-                className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : <Play size={14} fill="currentColor" />}
-                Run Optimization
-              </button>
-            </div>
+            <button 
+              onClick={handleRunSequence}
+              disabled={isProcessing || !input}
+              className="w-full py-4 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg"
+            >
+              {isProcessing ? "Compressing Payload..." : "Run Optimization Sequence"}
+            </button>
           </section>
 
           {output && (
-            <section className="bg-[#1a1d2d] border border-emerald-500/20 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4">
-              <div className="bg-emerald-500/5 px-5 py-3 border-b border-emerald-500/10 flex items-center justify-between">
+            <section className="bg-[#1a1d2d] border border-emerald-500/20 rounded-xl p-6 shadow-2xl animate-in slide-in-from-bottom-2">
+              <div className="flex items-center justify-between mb-4">
                 <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                  <Sparkles size={14} /> Optimized Prompt
+                  <Sparkles size={14} /> Optimized Output
                 </span>
-                <div className="flex gap-2">
-                  <button onClick={copyToClipboard} className="p-1.5 hover:bg-emerald-500/10 rounded-md text-emerald-400 transition-colors" title="Copy">
-                    <Copy size={16} />
-                  </button>
-                  <button onClick={() => setOutput('')} className="p-1.5 hover:bg-emerald-500/10 rounded-md text-emerald-400 transition-colors" title="Clear">
-                    <RotateCcw size={16} />
-                  </button>
-                </div>
+                <button onClick={() => setOutput('')} className="text-slate-500 hover:text-slate-200 transition-all">
+                  <RotateCcw size={16} />
+                </button>
               </div>
-              <div className="p-6 text-slate-300 font-medium text-sm leading-relaxed whitespace-pre-wrap">
+              <div className="p-4 bg-[#0f111a] rounded-lg text-sm text-slate-300 whitespace-pre-wrap border border-slate-800/50 leading-relaxed font-mono">
                 {output}
               </div>
             </section>
           )}
 
-          {/* Logs */}
-          <section className="bg-[#0f111a] border border-slate-800 rounded-xl overflow-hidden">
-            <div className="bg-slate-900/50 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Terminal size={12} className="text-slate-500" />
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Orchestration Logs</span>
+          <section className="bg-[#0f111a] border border-slate-800 rounded-xl h-28 overflow-y-auto p-4 font-mono text-[10px]">
+            {logs.length === 0 && <div className="text-slate-800 italic">Ready...</div>}
+            {logs.map(log => (
+              <div key={log.id} className="flex gap-2 mb-1">
+                <span className="text-slate-700">[{log.time}]</span>
+                <span className={log.type === 'success' ? 'text-emerald-500' : 'text-blue-400'}>{log.msg}</span>
               </div>
-            </div>
-            <div className="p-4 h-32 font-mono text-[10px] overflow-y-auto space-y-1.5 scrollbar-hide">
-              {logs.length === 0 && <div className="text-slate-800">Systems standby...</div>}
-              {logs.map(log => (
-                <div key={log.id} className="flex gap-2">
-                  <span className="text-slate-700">[{log.time}]</span>
-                  <span className={log.type === 'success' ? 'text-emerald-500' : 'text-blue-400'}>
-                    {log.msg}
-                  </span>
-                </div>
-              ))}
-            </div>
+            ))}
           </section>
         </div>
       </main>
