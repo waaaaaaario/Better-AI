@@ -3,7 +3,7 @@ import {
   Cpu, Zap, Database, Scissors, Box, Play, 
   TrendingDown, ShieldCheck, Sparkles, Copy, 
   RotateCcw, Terminal, Settings, LayoutDashboard,
-  BarChart3, DollarSign, Binary
+  BarChart3, DollarSign, Binary, Activity, WifiOff
 } from 'lucide-react';
 
 const PRICING_MODELS = {
@@ -18,6 +18,7 @@ const BetterAI = () => {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLinguaOnline, setIsLinguaOnline] = useState(false);
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState({
     totalTokens: 0,
@@ -48,7 +49,12 @@ const BetterAI = () => {
     }
   };
 
-  // --- Lexicon Mapping (Header Removed) ---
+  // Check connectivity status on load
+  useEffect(() => {
+    const token = getEnvVar('VITE_HF_TOKEN');
+    setIsLinguaOnline(!!token);
+  }, []);
+
   const applyLexiconMapping = (text) => {
     const dictionary = {
       "artificial intelligence": "AI",
@@ -73,7 +79,6 @@ const BetterAI = () => {
     };
 
     let encodedText = text;
-    // Sort keys by length descending to prevent partial matches
     const sortedKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
 
     sortedKeys.forEach(key => {
@@ -83,7 +88,6 @@ const BetterAI = () => {
       }
     });
 
-    // We no longer return the "KEY: ..." header because the AI is assumed to know the mapping
     return encodedText;
   };
 
@@ -112,8 +116,16 @@ const BetterAI = () => {
           body: JSON.stringify({ inputs: `Compress this prompt for AI: ${text}` }),
         });
         const data = await response.json();
-        if (data?.[0]?.generated_text) return data[0].generated_text.trim();
-      } catch (e) { console.warn("API Offline"); }
+        if (data?.[0]?.generated_text) {
+          setIsLinguaOnline(true);
+          return data[0].generated_text.trim();
+        }
+      } catch (e) { 
+        console.warn("API Offline"); 
+        setIsLinguaOnline(false);
+      }
+    } else {
+      setIsLinguaOnline(false);
     }
     return text;
   };
@@ -214,6 +226,22 @@ const BetterAI = () => {
                       <div className="text-[10px] text-slate-500">{agent.role}</div>
                     </div>
                   </div>
+                  
+                  {/* Status Flag for LLMLingua */}
+                  {agent.id === 2 && (
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-tighter ${
+                      isLinguaOnline 
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
+                        : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                    }`}>
+                      {isLinguaOnline ? <Activity size={10} /> : <WifiOff size={10} />}
+                      {isLinguaOnline ? "Live" : "Simulated"}
+                    </div>
+                  )}
+
+                  {agent.id !== 2 && (
+                    <div className={`h-1.5 w-1.5 rounded-full ${agent.status === 'active' ? 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]' : 'bg-slate-800'}`} />
+                  )}
                 </div>
               ))}
             </div>
